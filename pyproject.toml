@@ -15,3 +15,6 @@ dependencies = [
   "matplotlib>=3.9",
   "zstandard>=0.23"
 ]
+
+[tool.setuptools]
+packages = ["fvg_research"]
