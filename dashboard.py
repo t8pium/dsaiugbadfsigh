@@ -435,6 +435,16 @@ def data_setup():
     st.code("data/raw/mnq_ohlcv_1m.parquet")
     st.write("It must include ts_event, OHLC, volume, and symbol/raw_symbol. Then run:")
     st.code("python scripts/prepare_active_contract.py", language="bash")
+    st.markdown("### Code self-test")
+    st.write("This deterministic synthetic test requires no market-data license. It checks that the core detector finds known bullish/bearish FVGs and only creates the event on candle C.")
+    if st.button("Run synthetic detector self-test"):
+        rc, log = run_process(["-m", "unittest", "discover", "-s", "tests", "-v"])
+        st.code(log, language="text")
+        if rc == 0:
+            st.success("Synthetic detector self-test passed.")
+        else:
+            st.error("Self-test failed. Inspect the log before trusting local reproduction.")
+
     st.markdown("### Expected published snapshot")
     st.code("active rows: 2,303,483\ncontracts: 27\nstart: 2020-01-01 23:00:00+00:00\nend: 2026-07-10 20:59:00+00:00\nduplicate timestamps: 0\nmissing OHLC: 0", language="text")
     st.caption("If vendor history has been corrected since the published run, tiny numerical differences can be legitimate.")
