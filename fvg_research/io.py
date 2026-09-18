@@ -62,12 +62,12 @@ def _read_zip(path: Path) -> pd.DataFrame:
     with zipfile.ZipFile(path, "r") as zf, tempfile.TemporaryDirectory(prefix="fvg_upload_") as td:
         root = Path(td).resolve()
 
-        for info in zf.infolist():
+        for member_no, info in enumerate(zf.infolist(), 1):
             if info.is_dir():
                 continue
 
             # Prevent path traversal when extracting user-provided archives.
-            target = (root / Path(info.filename).name).resolve()
+            target = (root / f"{member_no:05d}_{Path(info.filename).name}").resolve()
             if root not in target.parents:
                 continue
 
