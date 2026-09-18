@@ -1,0 +1,347 @@
+{
+  "study": {
+    "instrument": "MNQ",
+    "period": "2020-01-01 to 2026-07-10",
+    "active_1m_rows": 2303483,
+    "contracts": 27,
+    "fvg_1m_count": 454197
+  },
+  "experiments": {
+    "raw_fill": {
+      "title": "01 — Raw Fill Rates",
+      "horizons_min": [
+        5,
+        15,
+        30,
+        60,
+        120,
+        240,
+        1380,
+        4140
+      ],
+      "touch_rate": [
+        0.7076,
+        0.8198,
+        0.8712,
+        0.9086,
+        0.9366,
+        0.954,
+        0.982,
+        0.9895
+      ],
+      "eventual_touch": 0.99878,
+      "eventual_full": 0.99795
+    },
+    "matched_attraction": {
+      "title": "02 — Matched-Zone Attraction",
+      "deep_1m": [
+        {
+          "horizon": "5m",
+          "fvg": 0.707325,
+          "control": 0.67705,
+          "difference_pp": 3.0275
+        },
+        {
+          "horizon": "15m",
+          "fvg": 0.819825,
+          "control": 0.80529,
+          "difference_pp": 1.4535
+        },
+        {
+          "horizon": "30m",
+          "fvg": 0.871225,
+          "control": 0.861665,
+          "difference_pp": 0.956
+        },
+        {
+          "horizon": "60m",
+          "fvg": 0.908625,
+          "control": 0.902855,
+          "difference_pp": 0.577
+        },
+        {
+          "horizon": "120m",
+          "fvg": 0.936575,
+          "control": 0.93133,
+          "difference_pp": 0.5245
+        },
+        {
+          "horizon": "240m",
+          "fvg": 0.954025,
+          "control": 0.951525,
+          "difference_pp": 0.25
+        },
+        {
+          "horizon": "~1d",
+          "fvg": 0.98195,
+          "control": 0.98192,
+          "difference_pp": 0.003
+        },
+        {
+          "horizon": "~3d",
+          "fvg": 0.98945,
+          "control": 0.989695,
+          "difference_pp": -0.0245
+        }
+      ],
+      "multi_tf_5bar": [
+        {
+          "timeframe": "1m",
+          "difference_pp": 2.7
+        },
+        {
+          "timeframe": "5m",
+          "difference_pp": 2.16
+        },
+        {
+          "timeframe": "15m",
+          "difference_pp": 0.63
+        },
+        {
+          "timeframe": "1H",
+          "difference_pp": 0.6
+        },
+        {
+          "timeframe": "4H",
+          "difference_pp": -1.13
+        }
+      ]
+    },
+    "age_decay": {
+      "title": "03 — Age Decay",
+      "one_minute": [
+        {
+          "window": "1→3 bars",
+          "difference_pp": 3.09
+        },
+        {
+          "window": "3→5 bars",
+          "difference_pp": -0.21
+        },
+        {
+          "window": "5→10 bars",
+          "difference_pp": -0.08
+        },
+        {
+          "window": "10→20 bars",
+          "difference_pp": -1.86
+        }
+      ]
+    },
+    "continuation": {
+      "title": "04 — Formation Continuation",
+      "five_bar": [
+        {
+          "timeframe": "1m",
+          "difference_atr": 0.0271
+        },
+        {
+          "timeframe": "5m",
+          "difference_atr": -0.041
+        },
+        {
+          "timeframe": "15m",
+          "difference_atr": 0.0083
+        },
+        {
+          "timeframe": "1H",
+          "difference_atr": -0.0381
+        },
+        {
+          "timeframe": "4H",
+          "difference_atr": 0.0599
+        }
+      ]
+    },
+    "retest": {
+      "title": "05 — First-Touch Retest Reaction",
+      "reaction": [
+        {
+          "timeframe": "1m",
+          "difference_pp": 2.32
+        },
+        {
+          "timeframe": "5m",
+          "difference_pp": 1.22
+        },
+        {
+          "timeframe": "15m",
+          "difference_pp": 1.41
+        },
+        {
+          "timeframe": "1H",
+          "difference_pp": 0.91
+        },
+        {
+          "timeframe": "4H",
+          "difference_pp": 1.55
+        }
+      ]
+    },
+    "midpoint": {
+      "title": "06 — Midpoint / CE",
+      "reaction": [
+        {
+          "timeframe": "1m",
+          "fvg": 52.16,
+          "control": 51.24,
+          "difference_pp": 0.92
+        },
+        {
+          "timeframe": "5m",
+          "fvg": 54.31,
+          "control": 51.87,
+          "difference_pp": 2.45
+        },
+        {
+          "timeframe": "15m",
+          "fvg": 54.17,
+          "control": 51.53,
+          "difference_pp": 2.64
+        },
+        {
+          "timeframe": "1H",
+          "fvg": 52.23,
+          "control": 51.87,
+          "difference_pp": 0.36
+        },
+        {
+          "timeframe": "4H",
+          "fvg": 52.16,
+          "control": 47.77,
+          "difference_pp": 4.39
+        }
+      ]
+    },
+    "body_acceptance": {
+      "title": "07 — Candle-Body Acceptance Around CE",
+      "selected": [
+        {
+          "timeframe": "1H",
+          "N": 318,
+          "win_rate": 50.2,
+          "mean_R": 0.001
+        },
+        {
+          "timeframe": "2H",
+          "N": 174,
+          "win_rate": 50.6,
+          "mean_R": 0.005
+        },
+        {
+          "timeframe": "4H",
+          "N": 82,
+          "win_rate": 60,
+          "mean_R": 0.177
+        }
+      ],
+      "four_hour_bands": [
+        {
+          "band": "40–45%",
+          "N": 47,
+          "win_rate": 56.5,
+          "mean_R": -0.015
+        },
+        {
+          "band": "45–50%",
+          "N": 49,
+          "win_rate": 67.35,
+          "mean_R": 0.286
+        },
+        {
+          "band": "50–55%",
+          "N": 33,
+          "win_rate": 48.4,
+          "mean_R": 0.005
+        },
+        {
+          "band": "55–60%",
+          "N": 44,
+          "win_rate": 40.9,
+          "mean_R": -0.041
+        }
+      ],
+      "exact_50_ge_1h": {
+        "N": 51,
+        "win_rate": 36.4,
+        "mean_R": -0.273
+      }
+    },
+    "controls_regimes": {
+      "title": "08 — Distance, Regimes & Controlled Model",
+      "fvg_odds_ratio_60m": 1.0789,
+      "distance": [
+        {
+          "bucket": "<0.25 ATR",
+          "fvg": 97.63,
+          "control": 97.66,
+          "difference_pp": -0.03
+        },
+        {
+          "bucket": "0.25–0.50",
+          "fvg": 94.44,
+          "control": 93.85,
+          "difference_pp": 0.59
+        },
+        {
+          "bucket": "0.50–0.75",
+          "fvg": 90.82,
+          "control": 89.95,
+          "difference_pp": 0.88
+        },
+        {
+          "bucket": "1.0–1.5",
+          "fvg": 81.74,
+          "control": 80.73,
+          "difference_pp": 1.01
+        },
+        {
+          "bucket": "1.5–2.0",
+          "fvg": 75.4,
+          "control": 73.81,
+          "difference_pp": 1.58
+        },
+        {
+          "bucket": "2–3",
+          "fvg": 66.67,
+          "control": 64.46,
+          "difference_pp": 2.21
+        }
+      ]
+    },
+    "oos": {
+      "title": "09 — Out-of-Sample Robustness",
+      "five_bar": [
+        {
+          "timeframe": "1m",
+          "train_pp": 3.06,
+          "test_pp": 1.86
+        },
+        {
+          "timeframe": "5m",
+          "train_pp": 2.1,
+          "test_pp": 2.31
+        },
+        {
+          "timeframe": "15m",
+          "train_pp": 0.69,
+          "test_pp": 0.49
+        },
+        {
+          "timeframe": "1H",
+          "train_pp": 1.02,
+          "test_pp": -0.38
+        },
+        {
+          "timeframe": "4H",
+          "train_pp": -0.71,
+          "test_pp": -2.09
+        }
+      ],
+      "deep_1m_60m": {
+        "train_pp": 0.79,
+        "test_pp": 0.08
+      }
+    }
+  }
+}
