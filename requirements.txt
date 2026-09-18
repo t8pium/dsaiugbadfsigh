@@ -7,3 +7,6 @@ statsmodels>=0.14
 matplotlib>=3.9
 numba>=0.60
 databento>=0.60
+
+streamlit>=1.39
+plotly>=5.24
