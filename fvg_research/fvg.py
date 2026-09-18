@@ -30,8 +30,8 @@ def detect_fvgs(df: pd.DataFrame, tick_size: float = 0.25) -> pd.DataFrame:
     e["width_atr"] = e["width"] / e["atr14"]
     e["distance"] = np.where(
         e["direction"] == 1,
-        (df["close"] - e["upper"]).clip(lower=0),
-        (e["lower"] - df["close"]).clip(lower=0),
+        np.maximum(df["close"].to_numpy() - e["upper"].to_numpy(), 0.0),
+        np.maximum(e["lower"].to_numpy() - df["close"].to_numpy(), 0.0),
     )
     e["distance_atr"] = e["distance"] / e["atr14"]
     e["body_b"] = (df["close"].shift(1) - df["open"].shift(1)).abs()
