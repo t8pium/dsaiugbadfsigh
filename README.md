@@ -1,60 +1,74 @@
-# Fair Value Gaps — Predictive Strength (MNQ) — Reproducibility
+# Fair Value Gaps — Predictive Strength (MNQ)
 
-This directory contains the code behind the portfolio project **“Do Fair Value Gaps predict price?”** The goal is reproducibility, not persuasion: a reviewer should be able to obtain the same MNQ data, rebuild the same active-contract series, rerun the experiments, and inspect the generated tables.
+Reproducible code for the portfolio research project:
+
+**https://t8pium.github.io/projects/fvg-predictive-strength/**
+
+The project asks whether mechanically defined Fair Value Gaps contain incremental information about future MNQ price behavior after controlling for distance, volatility, trend, session, and ordinary price revisits.
 
 **Published conclusion:** FVGs showed weak, short-lived, context-dependent predictive structure. The evidence did not support persistent deterministic “magnetism” or an FVG-only trading edge.
 
-## Repository map
+## Repository structure
 
-- `prepare_data.py` — rebuilds the exact active MNQ one-minute series from the Databento parent-symbol export.
-- `run_published.py` — runs the published experiment suite.
-- `published/fvg_final_fast.py` — deep 1m fill / matched-control / directional / stratification / logistic / sensitivity / holdout analysis.
-- `published/fvg_strength_one_tf.py` — multi-timeframe attraction, age decay, formation continuation, first-touch reaction, and 5-bar holdout.
-- `published/fvg_midpoint_reaction.py` — exact midpoint / consequent-encroachment matched race.
-- `published/fvg_ce_rejection_study.py` — candle-body acceptance / CE execution study from 1m through daily.
-- `reference_results/` — frozen small CSV outputs from the published run.
-- `tests/` — synthetic tests that require no licensed market data.
-
-The portable scripts preserve the published algorithms, seeds, horizons, matching rules, and ambiguity handling. Only input/output path configuration was changed from the original research-container scripts.
+- `src/original/` — exact analysis scripts retained from the original study run.
+- `scripts/download_databento.py` — recreates the raw parent-symbol one-minute OHLCV input.
+- `scripts/prepare_active_contract.py` — rebuilds the active MNQ one-minute series used by the study.
+- `scripts/run_original.py` — runs the original scripts portably by changing only environment-specific file paths in a temporary copy.
+- `run_all.py` — executes the complete published experiment family.
+- `fvg_research/` — shared reusable helpers.
+- `docs/EXPERIMENTS.md` — exact construction of every experiment.
+- `results/` — generated experiment outputs.
+- `data/` — local raw/processed data locations; licensed market data is not committed.
 
 ## Install
 
 ```bash
-git clone https://github.com/t8pium/t8pium.github.io.git
-cd t8pium.github.io/reproducibility/fvg-predictive-strength
+git clone https://github.com/t8pium/dsaiugbadfsigh.git
+cd dsaiugbadfsigh
+
 python -m venv .venv
+
+# macOS / Linux
 source .venv/bin/activate
-# Windows: .venv\Scripts\activate
-pip install -r requirements.txt\npip install -e .
+
+# Windows
+# .venv\Scripts\activate
+
+pip install -r requirements.txt
+pip install -e .
 ```
 
-Python 3.11+ is recommended.
+Python 3.10+ is required.
 
-## Obtain the data
+## Obtain the market data
 
-The raw historical market data is licensed and is **not redistributed** here.
+The raw historical market data is licensed and is **not redistributed**.
 
-The published study used a Databento request with:
+The study used:
 
-- dataset: `GLBX.MDP3`
-- parent symbol: `MNQ.FUT`
-- input symbology: `parent`
+- Databento dataset: `GLBX.MDP3`
 - schema: `ohlcv-1m`
-- coverage: 2020-01-01 through 2026-07-10
+- input symbology: `parent`
+- parent symbol: `MNQ.FUT`
+- period: 2020-01-01 through 2026-07-10
 
-Original study archive SHA-256:
-
-```text
-6a9d150999fb846abb00f202816ca2cc10051a79ad29a94a517b668a6e03a74c
-```
-
-Build the active series:
+With your own Databento key:
 
 ```bash
-python prepare_data.py --input /path/to/GLBX-20260711-3WDB9VAAF6.zip
+export DATABENTO_API_KEY="YOUR_KEY"
+python scripts/download_databento.py
+python scripts/prepare_active_contract.py
 ```
 
-Expected snapshot:
+The preparation script reproduces the published active-series construction:
+
+1. keep quarterly MNQ outright contracts only: `MNQ[HMUZ][0-9]`;
+2. assign CME trade date using America/New_York, with bars at or after 18:00 ET assigned to the following date;
+3. sum total one-minute volume by listed contract for each trade date;
+4. select the highest-volume outright for that trading date;
+5. concatenate the selected bars without back-adjusting prices.
+
+Expected published snapshot:
 
 ```text
 active rows: 2,303,483
@@ -65,120 +79,86 @@ duplicate timestamps: 0
 missing OHLC: 0
 ```
 
-The parent-symbol export contains multiple listed contracts at the same timestamp. `prepare_data.py` keeps quarterly MNQ outrights and selects the highest-total-volume outright for each CME trading date. The CME trading date advances at 18:00 America/New_York. Prices are unadjusted.
-
 ## Mechanical FVG definition
 
-For completed candles A=t−2, B=t−1, C=t:
+For completed candles A = t−2, B = t−1, C = t:
 
 ```text
 Bullish FVG: Low[C]  > High[A]
 Bearish FVG: High[C] < Low[A]
 ```
 
-Bullish zone = `High[A] -> Low[C]`.
-Bearish zone = `High[C] -> Low[A]`.
+Bullish zone = `High[A] → Low[C]`.
 
-An FVG becomes known only **after candle C closes**. The experiments never act as though the gap existed earlier.
+Bearish zone = `High[C] → Low[A]`.
 
-## Run
+An FVG becomes known only **after candle C closes**.
 
-```bash
-python run_published.py --suite all
-```
-
-Individual suites:
+## Run the published experiment suite
 
 ```bash
-python run_published.py --suite deep-1m
-python run_published.py --suite multitimeframe
-python run_published.py --suite midpoint
-python run_published.py --suite body
+python run_all.py
 ```
 
-## Experiment map
+Individual canonical suites:
 
-### 01 — Raw fill rates
-Canonical code: `published/fvg_final_fast.py`.
+```bash
+# Deep one-minute study:
+# raw fill, matched controls, stratification, logistic model, sensitivity, OOS
+python scripts/run_original.py detailed-1m
 
-Measures touch, 50% mitigation, full fill, and eventual touch. Fixed one-minute horizons are 5, 15, 30, 60, 120, 240, 1,380, and 4,140 trading bars. The result is interpreted only relative to matched ordinary zones.
+# Multi-timeframe attraction, age decay, continuation, retest reaction, OOS
+python scripts/run_original.py multi-tf --tf 1
+python scripts/run_original.py multi-tf --tf 5
+python scripts/run_original.py multi-tf --tf 15
+python scripts/run_original.py multi-tf --tf 60
+python scripts/run_original.py multi-tf --tf 240
 
-### 02 — Matched-zone attraction
-Canonical code: `fvg_final_fast.py` and `fvg_strength_one_tf.py`.
+# Midpoint / consequent encroachment
+python scripts/run_original.py midpoint --tf 1
+python scripts/run_original.py midpoint --tf 5
+python scripts/run_original.py midpoint --tf 15
+python scripts/run_original.py midpoint --tf 60
+python scripts/run_original.py midpoint --tf 240
 
-Deep 1m study: RNG seed 42, up to 40,000 real FVGs, 5 controls per FVG. Multi-timeframe study: seed 260918, up to 12,000 FVGs per timeframe, 3 controls per FVG.
+# Candle-body / CE acceptance study from 1m through daily
+python scripts/run_original.py ce-body
+```
 
-Controls preserve direction and ATR-normalized width/distance and match session, volatility regime, trend regime, and time bucket.
+## Canonical source map
 
-### 03 — Age decay
-Canonical code: `fvg_strength_one_tf.py`.
+| Script | Experiment families |
+|---|---|
+| `src/original/fvg_final_fast.py` | Raw fill rates, detailed 1m matched attraction, directional movement, distance/size/session/volatility/trend/displacement/year stratification, sensitivity, logistic model, 70/30 holdout |
+| `src/original/fvg_strength_one_tf.py` | Multi-timeframe attraction, age decay, formation continuation, first-touch retest reaction, 5-bar chronological holdout |
+| `src/original/fvg_midpoint_reaction.py` | Exact midpoint / CE symmetric race with matched controls and yearly breakdown |
+| `src/original/fvg_ce_rejection_study.py` | Body-close penetration bands, exact 50%, 45–55%, first-touch sensitivity, 1m→daily execution, exploratory 4H 45–50% result |
 
-Conditional transitions: 1→3, 3→5, 5→10, 10→20 native bars. The test asks whether a gap that has survived unfilled is still unusually likely to be touched next.
+For exact matching rules, horizons, censoring, ambiguity handling, random seeds, and validation design, read:
 
-### 04 — Formation continuation
-Canonical code: `fvg_strength_one_tf.py`.
-
-FVG moves are matched to non-FVG moves by session, volatility/trend regime, time bucket, signed displacement direction, 3-bar movement/ATR bin, and middle-candle body/ATR bin. Forward directional returns are tested at 1, 3, 5, and 10 bars.
-
-### 05 — First-touch reaction
-Canonical code: `fvg_strength_one_tf.py`, function `first_touch_reaction`.
-
-Near-edge touch must occur within 20 native bars. Starting the next bar, price races a rejection target one full gap width away against the far edge for 10 bars. Same-bar target+far hits are ambiguous.
-
-### 06 — Midpoint / CE
-Canonical code: `fvg_midpoint_reaction.py`; RNG seed 9917.
-
-The exact midpoint must be touched within 20 bars. Starting on the next bar, the equidistant near edge and far edge race for 10 bars. Same-bar hits are ambiguous. Three matched controls per FVG; day-cluster bootstrap uses 500 repetitions.
-
-### 07 — Candle-body acceptance around CE
-Canonical code: `fvg_ce_rejection_study.py`.
-
-Timeframes: 1m, 2m, 3m, 5m, 10m, 15m, 30m, 1H, 2H, 4H, 6H, 8H, 12H, 1D.
-
-A later opposite-colored candle must wick into the FVG and body-close inside it before a body-close invalidation. Depth is normalized 0%=near edge, 50%=CE, 100%=far edge. Entry is the signal close; stop is the far edge; target is the near edge. Higher-TF signals are resolved on future 1m bars. Same-minute TP+SL is ambiguous and is a loss only in the explicitly labeled conservative expectancy.
-
-The 4H 45–50% result is **hypothesis-generating**, not confirmed.
-
-### 08 — Controls, distance and regimes
-Canonical code: `fvg_final_fast.py`.
-
-The 60m outcome is stratified by distance, size, session, direction, volatility, trend, displacement and year. The logistic model uses FVG status, distance, width, volatility ratio, trend score, cyclical time-of-day terms, and direction, with `LogisticRegression(max_iter=200, C=1e6)`.
-
-### 09 — Out-of-sample robustness
-Canonical code: all three relevant programs.
-
-The time series is split chronologically, never randomly shuffled. The multi-timeframe magnet test uses a 70/30 split of matched events. The deep 1m study separately tests 60m attraction by chronological split and by year. The CE/body study applies its own chronological 70/30 split to the 45–55% subset.
-
-## Frozen random seeds
-
-- deep 1m controls: 42
-- deep 1m cluster bootstrap: 7
-- multi-timeframe experiments: 260918
-- midpoint experiment: 9917
-- CE/body bootstrap: 20260918
-
-## Important limitations
-
-- One primary market: MNQ.
-- One-minute OHLCV cannot reveal TP/SL ordering inside the same minute.
-- Matched controls reduce obvious confounding but do not prove causality.
-- Related FVGs from the same move/day are not independent; day clustering is used where practical.
-- Many timeframe/depth cells were inspected, so post-hoc strong subgroups need independent replication.
-- Statistical significance is not equivalent to net trading profitability.
-
-Portfolio report: https://t8pium.github.io/projects/fvg-predictive-strength/
-
+**[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)**
 
 ## Original-script integrity
 
-The files in `src/original/` are the study scripts retained from the original analysis run. They intentionally still show the original `/mnt/data` paths. Do not edit them if you want an auditable copy.
+The files under `src/original/` are the analysis scripts preserved from the original research run. They intentionally retain the original container paths.
 
-`scripts/run_original.py` reads an original script, patches only those environment-specific paths into a temporary copy, and executes the temporary file. Random seeds and experiment logic remain unchanged.
+`scripts/run_original.py` loads an original script, changes only machine-specific input/output paths in a temporary copy, and executes that temporary file. The original files are not modified.
 
-## Expected compute
+## Important limitations
 
-The one-minute detailed study and CE body-acceptance study are the heaviest. Runtime depends strongly on CPU, available RAM, and whether Numba has already compiled its functions. Multi-timeframe runs are designed to be executed one timeframe at a time.
+- The primary market is MNQ.
+- One-minute OHLC cannot reveal TP/SL ordering when both trade inside the same minute.
+- Matched controls reduce obvious confounding but do not prove causality.
+- FVGs from the same move/day are not fully independent.
+- Many timeframe/depth cells were inspected, so post-hoc strong subgroups require independent replication.
+- Statistical predictability does not imply net profitability after costs and execution.
 
 ## Data licensing
 
-This repository does not redistribute Databento market data. The downloader is provided so a reader with their own Databento access can recreate the source bars. Databento documents parent futures requests with `stype_in="parent"` and one-minute OHLCV with `schema="ohlcv-1m"`.
+No Databento market data is committed to this repository. The downloader and preparation scripts are provided so readers with their own licensed access can recreate the inputs.
+
+## Portfolio
+
+Full write-up and experiment pages:
+
+**https://t8pium.github.io/projects/fvg-predictive-strength/**
