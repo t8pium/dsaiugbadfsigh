@@ -237,6 +237,96 @@ def run_original(study: str, tf: int | None = None, ce_tfs: list[int] | None = N
         args += ["--ce-tfs", ",".join(map(str, ce_tfs))]
     return run_process(args)
 
+
+def _safe_upload_name(name: str) -> str:
+    """Keep only a local filename; never honor an uploaded path."""
+    cleaned = Path(name).name.replace("\\", "_").replace("/", "_")
+    return cleaned or "databento_upload"
+
+
+def save_uploaded_files(uploaded_files, key_prefix: str) -> list[Path]:
+    session_dir = UPLOADS / key_prefix
+    session_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+
+    for number, uploaded in enumerate(uploaded_files, 1):
+        target = session_dir / f"{number:02d}_{_safe_upload_name(uploaded.name)}"
+        uploaded.seek(0)
+        with target.open("wb") as dst:
+            while True:
+                chunk = uploaded.read(8 * 1024 * 1024)
+                if not chunk:
+                    break
+                dst.write(chunk)
+        uploaded.seek(0)
+        paths.append(target)
+
+    return paths
+
+
+def render_databento_upload(key_prefix: str, compact: bool = False):
+    uploaded = st.file_uploader(
+        "Upload Databento / OHLCV file(s)",
+        type=["dbn", "zst", "parquet", "pq", "csv", "gz", "zip"],
+        accept_multiple_files=True,
+        key=f"{key_prefix}_market_upload",
+        help=(
+            "Supported: Databento DBN/DBN.ZST, Parquet, CSV/CSV.GZ, "
+            "or ZIP archives containing supported files. You can select multiple files."
+        ),
+    )
+
+    st.caption(
+        "Supported: .dbn, .dbn.zst, .parquet, .pq, .csv, .csv.gz, .zip. "
+        "Multiple Databento batch files can be uploaded together."
+    )
+
+    if not uploaded:
+        return False
+
+    total = sum(getattr(x, "size", 0) or 0 for x in uploaded)
+    names = ", ".join(x.name for x in uploaded[:4])
+    if len(uploaded) > 4:
+        names += f", +{len(uploaded)-4} more"
+    st.info(f"Selected {len(uploaded)} file(s) · {total / (1024**2):,.1f} MB\\n\\n{names}")
+
+    if st.button(
+        "Import file(s) + build active MNQ dataset",
+        type="primary",
+        key=f"{key_prefix}_process_upload",
+        use_container_width=compact,
+    ):
+        try:
+            saved = save_uploaded_files(uploaded, key_prefix)
+        except Exception as exc:
+            st.error(f"Could not save uploaded file(s): {exc}")
+            return False
+
+        args = [str(ROOT / "scripts" / "prepare_active_contract.py")]
+        for path in saved:
+            args.extend(["--input", str(path)])
+
+        with st.spinner("Reading the upload and rebuilding the active MNQ contract series..."):
+            rc, log = run_process(args)
+
+        st.session_state[f"{key_prefix}_upload_log"] = log
+        st.session_state[f"{key_prefix}_upload_rc"] = rc
+
+        if rc == 0 and DATA_FILE.exists():
+            st.success("Upload processed successfully. The MNQ dataset is ready for experiments.")
+            return True
+
+        st.error("The file could not be prepared. Open the import log below for details.")
+
+    if st.session_state.get(f"{key_prefix}_upload_log"):
+        with st.expander(
+            "Import log",
+            expanded=st.session_state.get(f"{key_prefix}_upload_rc") != 0,
+        ):
+            st.code(st.session_state[f"{key_prefix}_upload_log"], language="text")
+
+    return DATA_FILE.exists()
+
 def result_files() -> list[Path]:
     if not RESULTS.exists():
         return []
