@@ -452,10 +452,16 @@ def source_panel(exp):
 def reproduce_panel(exp_id: str, exp):
     st.subheader("Reproduce on this machine")
     if not DATA_FILE.exists():
-        st.error("The processed MNQ dataset is not present yet. Open Data Setup first.")
-        if st.button("Go to Data Setup", key=f"setup_{exp_id}"):
-            st.session_state["page"] = "Data Setup"
-            st.rerun()
+        st.warning("The processed MNQ dataset is not present yet.")
+        st.markdown("#### Upload your Databento file here")
+        ready = render_databento_upload(f"experiment_{exp_id}", compact=True)
+        if ready:
+            st.success("Dataset ready. Reopen this Reproduce tab to run the experiment.")
+        with st.expander("Other data setup options"):
+            st.write("You can also download the historical data with your own Databento API key.")
+            if st.button("Open full Data Setup", key=f"setup_{exp_id}"):
+                st.session_state["page"] = "Data Setup"
+                st.rerun()
         return
     runner = exp["runner"]
     action = None
@@ -531,11 +537,20 @@ def data_setup():
             st.rerun()
         else:
             st.error("Data preparation failed. Read the log above.")
-    st.markdown("### Option B — Use your own export")
-    st.write("Place a compatible parent-symbol export at:")
-    st.code("data/raw/mnq_ohlcv_1m.parquet")
-    st.write("It must include ts_event, OHLC, volume, and symbol/raw_symbol. Then run:")
-    st.code("python scripts/prepare_active_contract.py", language="bash")
+    st.markdown("### Option B — Upload your own Databento file")
+    st.write(
+        "Drag the file directly into the app. The Research Lab saves it locally, "
+        "reads it, filters MNQ outright contracts, and rebuilds the active one-minute series automatically."
+    )
+    render_databento_upload("data_setup")
+
+    with st.expander("Manual file-path fallback"):
+        st.write("If you prefer not to use the uploader, the command-line importer also accepts one or more files:")
+        st.code(
+            "python scripts/prepare_active_contract.py --input YOUR_FILE.dbn.zst\n"
+            "python scripts/prepare_active_contract.py --input PART1.dbn.zst --input PART2.dbn.zst",
+            language="bash",
+        )
     st.markdown("### Code self-test")
     st.write("This deterministic synthetic test requires no market-data license. It checks that the core detector finds known bullish/bearish FVGs and only creates the event on candle C.")
     if st.button("Run synthetic detector self-test"):
