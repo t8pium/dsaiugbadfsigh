@@ -226,7 +226,22 @@ def chart_reference(exp_id: str) -> pd.DataFrame:
 
 def run_process(args: list[str], env: dict[str, str] | None = None):
     cmd = [str(Path(sys.executable)), *args]
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
+    child_env = os.environ.copy()
+    if env:
+        child_env.update(env)
+
+    # Child scripts live under scripts/, so make the repository root explicit.
+    # This keeps local imports working even if editable-install state is stale.
+    existing = child_env.get("PYTHONPATH", "")
+    child_env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing if existing else "")
+
+    p = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=child_env,
+    )
     return p.returncode, (p.stdout or "") + ("\n" + p.stderr if p.stderr else "")
 
 def run_original(study: str, tf: int | None = None, ce_tfs: list[int] | None = None):
