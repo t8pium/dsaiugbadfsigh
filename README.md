@@ -6,6 +6,25 @@ Reproducible code for the portfolio research project:
 
 The project asks whether mechanically defined Fair Value Gaps contain incremental information about future MNQ price behavior after controlling for distance, volatility, trend, session, and ordinary price revisits.
 
+## One-click interactive research lab
+
+If you just want to inspect the project visually:
+
+1. **[Download the repository ZIP](https://github.com/t8pium/fvg-predictive-strength/archive/refs/heads/main.zip)**.
+2. Extract the ZIP.
+3. On Windows, double-click **`START_HERE.bat`**.
+4. The launcher creates an isolated Python environment and installs the required libraries automatically.
+5. A local browser dashboard opens with one card for every experiment.
+
+macOS/Linux users can run `START_HERE.command` or `python3 bootstrap.py`.
+
+The dashboard separates two things clearly:
+
+- **Published evidence** — frozen reference tables/charts from the original study.
+- **Local reproduction** — outputs produced by the experiment code on the reviewer's own machine.
+
+The licensed MNQ market data is not embedded in the ZIP. A reviewer can provide their own compatible export or use their own Databento API key from the dashboard's **Data Setup** page. Downloading historical vendor data may be billable under the reviewer's Databento plan.
+
 **Published conclusion:** FVGs showed weak, short-lived, context-dependent predictive structure. The evidence did not support persistent deterministic “magnetism” or an FVG-only trading edge.
 
 ## Repository structure
@@ -14,6 +33,10 @@ The project asks whether mechanically defined Fair Value Gaps contain incrementa
 - `scripts/download_databento.py` — recreates the raw parent-symbol one-minute OHLCV input.
 - `scripts/prepare_active_contract.py` — rebuilds the active MNQ one-minute series used by the study.
 - `scripts/run_original.py` — runs the original scripts portably by changing only environment-specific file paths in a temporary copy.
+- `START_HERE.bat` — Windows one-click launcher; creates a private environment, installs dependencies, and opens the dashboard.
+- `dashboard.py` — interactive experiment cards, published charts, source viewer, reproduction controls, and local-output browser.
+- `bootstrap.py` — dependency/bootstrap logic used by the one-click launcher.
+- `reference_results/` — frozen published metrics displayed by the dashboard.
 - `run_all.py` — executes the complete published experiment family.
 - `fvg_research/` — shared reusable helpers.
 - `docs/EXPERIMENTS.md` — exact construction of every experiment.
