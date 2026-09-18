@@ -53,6 +53,8 @@ def main():
         patched = Path(td) / src.name
         patched.write_text(code, encoding="utf-8")
         subprocess.run([sys.executable, str(patched)] + cmd_extra, check=True, cwd=ROOT, env=env)
+        if args.study == "ce-body":
+            subprocess.run([sys.executable, str(ROOT / "scripts" / "postprocess_body_bands.py")], check=True, cwd=ROOT, env=env)
 
 if __name__ == "__main__":
     main()
