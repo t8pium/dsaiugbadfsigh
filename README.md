@@ -23,7 +23,7 @@ The dashboard separates two things clearly:
 - **Published evidence** — frozen reference tables/charts from the original study.
 - **Local reproduction** — outputs produced by the experiment code on the reviewer's own machine.
 
-The licensed MNQ market data is not embedded in the ZIP. A reviewer can provide their own compatible export or use their own Databento API key from the dashboard's **Data Setup** page. Downloading historical vendor data may be billable under the reviewer's Databento plan.
+The licensed MNQ market data is not embedded in the ZIP. From the dashboard's **Data Setup** page, a reviewer can either use their own Databento API key or **drag and drop the market-data file directly into the app**. Direct upload supports Databento `.dbn` / `.dbn.zst`, Parquet, CSV / CSV.GZ, ZIP archives, and multiple batch files selected together. Downloading historical vendor data may be billable under the reviewer's Databento plan.
 
 **Published conclusion:** FVGs showed weak, short-lived, context-dependent predictive structure. The evidence did not support persistent deterministic “magnetism” or an FVG-only trading edge.
 
@@ -64,6 +64,28 @@ pip install -e .
 Python 3.10+ is required.
 
 ## Obtain the market data
+
+### Direct file upload
+
+The easiest offline path is inside the local Research Lab:
+
+1. Double-click `START_HERE.bat`.
+2. Open **Data Setup**.
+3. Under **Option B — Upload your own Databento file**, drag in one or more files.
+4. Click **Import file(s) + build active MNQ dataset**.
+
+The same uploader also appears inside an experiment's **Reproduce** tab whenever the dataset is missing.
+
+Supported uploads:
+
+- Databento `.dbn` and `.dbn.zst`
+- `.parquet` / `.pq`
+- `.csv` / `.csv.gz`
+- `.zip` containing any supported file type
+- multiple files from a Databento batch download
+
+Large local uploads are allowed up to 4 GB by the bundled Streamlit configuration.
+
 
 The raw historical market data is licensed and is **not redistributed**.
 
