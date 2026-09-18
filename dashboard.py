@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent
 REF_PATH = ROOT / "reference_results" / "reference_metrics.json"
 DATA_FILE = ROOT / "data" / "processed" / "active_mnq.pkl"
 RESULTS = ROOT / "results"
+UPLOADS = ROOT / "data" / "uploads"
+UPLOADS.mkdir(parents=True, exist_ok=True)
 GITHUB = "https://github.com/t8pium/fvg-predictive-strength"
 
 with REF_PATH.open("r", encoding="utf-8") as fh:
