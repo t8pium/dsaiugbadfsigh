@@ -25,6 +25,10 @@ jobs:
         run: |
           python -m compileall -q dashboard.py bootstrap.py scripts fvg_research src/original tests
 
+      - name: Verify child script can import local package
+        run: |
+          python scripts/prepare_active_contract.py --help
+
       - name: Run synthetic FVG tests
         run: |
           python -m unittest discover -s tests -v
