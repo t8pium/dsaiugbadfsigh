@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".fvg_venv"
 REQ = ROOT / "requirements.txt"
+PROJECT = ROOT / "pyproject.toml"
 STAMP = VENV / ".requirements_installed"
 
 def run(cmd):
@@ -28,7 +29,11 @@ def main():
         run([sys.executable, "-m", "venv", str(VENV)])
 
     py = venv_python()
-    needs_install = (not STAMP.exists()) or (REQ.stat().st_mtime > STAMP.stat().st_mtime)
+    needs_install = (
+        (not STAMP.exists())
+        or (REQ.stat().st_mtime > STAMP.stat().st_mtime)
+        or (PROJECT.stat().st_mtime > STAMP.stat().st_mtime)
+    )
 
     if needs_install:
         print("\nInstalling required libraries. This is only needed on first launch or after requirements change.", flush=True)
@@ -38,6 +43,9 @@ def main():
         STAMP.touch()
     else:
         print("\nDependencies already installed.", flush=True)
+        # Refresh the local editable package every launch. This is fast and
+        # prevents stale extracted-ZIP environments from losing local imports.
+        run([str(py), "-m", "pip", "install", "-e", ".", "--no-deps"])
 
     print("\nLaunching the local FVG Research Lab...", flush=True)
     run([
