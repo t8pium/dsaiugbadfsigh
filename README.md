@@ -23,8 +23,8 @@ The project asks whether mechanically defined Fair Value Gaps contain incrementa
 ## Install
 
 ```bash
-git clone https://github.com/t8pium/dsaiugbadfsigh.git
-cd dsaiugbadfsigh
+git clone https://github.com/t8pium/fvg-predictive-strength.git
+cd fvg-predictive-strength
 
 python -m venv .venv
 
