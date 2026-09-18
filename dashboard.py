@@ -312,6 +312,15 @@ def verification(exp_id: str):
                 df = pd.read_csv(p)
                 if len(df):
                     rows.append(("1m midpoint difference pp", float(df.iloc[0]["Difference"]) * 100, 0.92, 1.00))
+        elif exp_id == "body_acceptance":
+            p = RESULTS / "ce_body" / "body_depth_5pct.csv"
+            if p.exists():
+                df = pd.read_csv(p)
+                row = df[(df["timeframe"] == "4H") & (df["depth_band"] == "45-50%")]
+                if len(row):
+                    rows.append(("4H 45-50% win rate %", float(row.iloc[0]["win_rate"]) * 100, 67.35, 1.50))
+                    rows.append(("4H 45-50% mean R", float(row.iloc[0]["mean_R_conservative"]), 0.286, 0.08))
+
         elif exp_id == "controls_regimes":
             p = RESULTS / "detailed_1m" / "logistic_60m.json"
             if p.exists():
