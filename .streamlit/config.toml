@@ -1,6 +1,9 @@
 [server]
-maxUploadSize = 4096
-maxMessageSize = 4096
+# Browser uploads are intentionally capped; multi-GB datasets should use the
+# dashboard's local-path importer, which streams from disk.
+maxUploadSize = 1024
+maxMessageSize = 1024
+showEmailPrompt = false
 
 [browser]
 gatherUsageStats = false

@@ -1,10 +1,20 @@
+.fvg_venv/
 .venv/
 __pycache__/
-*.pyc
-data/*.pkl
-data/*.csv
-data/*.zst
-data/*.zip
-results/
+*.py[cod]
+*.egg-info/
+build/
+dist/
 
-data/uploads/*
+# Licensed/user market data and rebuilt local datasets.
+data/raw/**
+data/processed/**
+data/uploads/**
+!data/README.md
+
+# Locally generated research output and logs.
+results/**
+!results/README.md
+
+*.dbn
+*.dbn.zst

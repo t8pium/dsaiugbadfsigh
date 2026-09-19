@@ -1,19 +1,26 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools==80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "t8pium-fvg-research"
-version = "1.0.0"
+version = "1.1.0"
 description = "Reproducibility code for the MNQ Fair Value Gap predictive-strength study"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
-  "numpy>=2.0",
-  "pandas>=2.2",
-  "numba>=0.61",
-  "scikit-learn>=1.5",
-  "matplotlib>=3.9",
-  "zstandard>=0.23"
+  "numpy==2.5.3",
+  "pandas==2.2.3",
+  "pyarrow==25.0.1",
+  "scipy==1.18.1",
+  "scikit-learn==1.9.1",
+  "statsmodels==0.15.0",
+  "matplotlib==3.11.2",
+  "numba==0.67.0",
+  "databento==0.86.0",
+  "duckdb==1.5.5",
+  "streamlit==1.64.0",
+  "plotly==6.9.0",
+  "zstandard==0.25.0",
 ]
 
 [tool.setuptools]

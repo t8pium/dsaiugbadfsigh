@@ -1,72 +1,60 @@
 import unittest
+
 import numpy as np
 import pandas as pd
 
 from fvg_research.fvg import detect_fvgs
 
 
+def base_frame(periods=30):
+    index = pd.date_range("2026-01-01", periods=periods, freq="1min", tz="UTC")
+    center = np.full(periods, 100.0)
+    return pd.DataFrame({
+        "open": center, "high": center + 1, "low": center - 1,
+        "close": center + 0.25, "volume": 100,
+    }, index=index)
+
+
 class TestFVGDefinition(unittest.TestCase):
-    def test_detects_bullish_and_bearish_fvgs_without_lookahead(self):
-        idx = pd.date_range("2026-01-01", periods=8, freq="1min", tz="UTC")
-        df = pd.DataFrame(
-            {
-                "open":  [100, 101, 104, 105, 106, 103, 101,  98],
-                "high":  [102, 103, 106, 107, 108, 105, 103, 100],
-                "low":   [ 99, 100, 103, 104, 105, 102,  99,  96],
-                "close": [101, 102, 105, 106, 107, 103, 100,  97],
-                "volume":[100]*8,
-            },
-            index=idx,
-        )
+    def test_bullish_and_bearish_geometry(self):
+        frame = base_frame(35)
+        bull_time = frame.index[20]
+        frame.loc[frame.index[18], "high"] = 101
+        frame.loc[bull_time, ["open", "high", "low", "close"]] = [102, 104, 102, 103]
+        bear_time = frame.index[30]
+        frame.loc[frame.index[28], "low"] = 99
+        frame.loc[bear_time, ["open", "high", "low", "close"]] = [97, 98, 96, 97]
+        events = detect_fvgs(frame)
+        bull, bear = events.loc[bull_time], events.loc[bear_time]
+        self.assertEqual(int(bull.direction), 1)
+        self.assertEqual((bull.lower, bull.upper), (101, 102))
+        self.assertEqual(int(bear.direction), -1)
+        self.assertEqual((bear.lower, bear.upper), (98, 99))
 
-        # Force enough ATR history for this tiny synthetic example by appending a
-        # stable prefix, then retain the final events.
-        prefix_idx = pd.date_range("2025-12-31 23:40", periods=20, freq="1min", tz="UTC")
-        prefix = pd.DataFrame(
-            {
-                "open": np.linspace(90, 99, 20),
-                "high": np.linspace(91,100,20),
-                "low":  np.linspace(89, 98, 20),
-                "close":np.linspace(90.5,99.5,20),
-                "volume":[100]*20,
-            },
-            index=prefix_idx,
-        )
-        x = pd.concat([prefix, df])
-        events = detect_fvgs(x)
+    def test_no_lookahead_future_mutation(self):
+        frame = base_frame(35)
+        frame.loc[frame.index[20], ["open", "high", "low", "close"]] = [102, 104, 102, 103]
+        before = detect_fvgs(frame).loc[: frame.index[20]]
+        frame.loc[frame.index[21]:, ["open", "high", "low", "close"]] += 10_000
+        after = detect_fvgs(frame).loc[: frame.index[20]]
+        pd.testing.assert_frame_equal(before, after, check_freq=False)
 
-        # Candle C at idx[2]: low=103 > high[idx[0]]=102 => bullish FVG.
-        bull = events.loc[idx[2]]
-        self.assertEqual(int(bull["direction"]), 1)
-        self.assertAlmostEqual(float(bull["lower"]), 102.0)
-        self.assertAlmostEqual(float(bull["upper"]), 103.0)
+    def test_edge_equality_is_not_gap(self):
+        frame = base_frame(25)
+        frame.loc[frame.index[20], ["open", "high", "low", "close"]] = [101, 102, 101, 101.5]
+        self.assertNotIn(frame.index[20], detect_fvgs(frame).index)
 
-        # Candle C at idx[7]: high=100 < low[idx[5]]=102 => bearish FVG.
-        bear = events.loc[idx[7]]
-        self.assertEqual(int(bear["direction"]), -1)
-        self.assertAlmostEqual(float(bear["lower"]), 100.0)
-        self.assertAlmostEqual(float(bear["upper"]), 102.0)
+    def test_minimum_tick_is_included_but_subtick_is_not(self):
+        exact = base_frame(25)
+        exact.loc[exact.index[20], ["open", "high", "low", "close"]] = [101.25, 102, 101.25, 101.5]
+        self.assertIn(exact.index[20], detect_fvgs(exact, 0.25).index)
+        sub = base_frame(25)
+        sub.loc[sub.index[20], ["open", "high", "low", "close"]] = [101.2, 102, 101.2, 101.5]
+        self.assertNotIn(sub.index[20], detect_fvgs(sub, 0.25).index)
 
-    def test_event_is_only_created_on_candle_c(self):
-        idx = pd.date_range("2026-01-01", periods=20, freq="1min", tz="UTC")
-        df = pd.DataFrame({
-            "open": np.arange(20, dtype=float)+100,
-            "high": np.arange(20, dtype=float)+101,
-            "low": np.arange(20, dtype=float)+99,
-            "close": np.arange(20, dtype=float)+100.5,
-            "volume": [100]*20,
-        }, index=idx)
-
-        # Construct a bullish gap at the final candle only.
-        df.loc[idx[-3], "high"] = 110
-        df.loc[idx[-1], "low"] = 112
-        df.loc[idx[-1], "high"] = 114
-        df.loc[idx[-1], "open"] = 112
-        df.loc[idx[-1], "close"] = 113
-
-        events = detect_fvgs(df)
-        self.assertIn(idx[-1], events.index)
-        self.assertNotIn(idx[-2], events.index)
+    def test_invalid_tick_rejected(self):
+        with self.assertRaises(ValueError):
+            detect_fvgs(base_frame(), 0)
 
 
 if __name__ == "__main__":

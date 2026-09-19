@@ -1,119 +1,36 @@
 # Fair Value Gaps — Predictive Strength (MNQ)
 
-Reproducible code for the portfolio research project:
+Reproducible code for the [published FVG research report](https://t8pium.github.io/projects/fvg-predictive-strength/). The project tests whether mechanically defined Fair Value Gaps add information after controlling for distance, volatility, trend, session, and ordinary price revisits.
 
-**https://t8pium.github.io/projects/fvg-predictive-strength/**
+The published conclusion is deliberately modest: FVGs showed weak, short-lived, context-dependent structure, not persistent deterministic “magnetism” or an FVG-only trading edge.
 
-The project asks whether mechanically defined Fair Value Gaps contain incremental information about future MNQ price behavior after controlling for distance, volatility, trend, session, and ordinary price revisits.
+## Fastest path: ZIP to Research Lab
 
-## One-click interactive research lab
-
-If you just want to inspect the project visually:
-
-1. **[Download the repository ZIP](https://github.com/t8pium/fvg-predictive-strength/archive/refs/heads/main.zip)**.
-2. Extract the ZIP.
+1. [Download the repository ZIP](https://github.com/t8pium/fvg-predictive-strength/archive/refs/heads/main.zip).
+2. Extract it anywhere, including a folder whose name contains spaces.
 3. On Windows, double-click **`START_HERE.bat`**.
-4. The launcher creates an isolated Python environment and installs the required libraries automatically.
-5. A local browser dashboard opens with one card for every experiment.
+4. The launcher finds a supported 64-bit Python, creates `.fvg_venv`, installs the exact dependencies and local package, and opens the Streamlit Research Lab.
+5. Open any of the nine experiment cards. Published methods, frozen reference evidence, charts, and source code are available without market data.
+6. To reproduce, use **Data Setup** or an experiment’s **Reproduce** tab to upload licensed data or select data already on disk.
 
-macOS/Linux users can run `START_HERE.command` or `python3 bootstrap.py`.
+The supported interpreter range is 64-bit Python 3.11–3.13. Python 3.10 is not supported by this pinned snapshot. On macOS/Linux, use `./START_HERE.command` or `python3 bootstrap.py`.
 
-The dashboard separates two things clearly:
+## Data setup in the dashboard
 
-- **Published evidence** — frozen reference tables/charts from the original study.
-- **Local reproduction** — outputs produced by the experiment code on the reviewer's own machine.
+Licensed Databento data is not redistributed. The UI offers three paths:
 
-The licensed MNQ market data is not embedded in the ZIP. From the dashboard's **Data Setup** page, a reviewer can either use their own Databento API key or **drag and drop the market-data file directly into the app**. Direct upload supports Databento `.dbn` / `.dbn.zst`, Parquet, CSV / CSV.GZ, ZIP archives, and multiple batch files selected together. Downloading historical vendor data may be billable under the reviewer's Databento plan.
+- Download `GLBX.MDP3` / `ohlcv-1m` / `MNQ.FUT` using your own API key. The key remains only in the child-process environment and is never persisted. Historical requests may be billable.
+- Drag and drop one or more `.dbn`, `.dbn.zst`, `.parquet`, `.pq`, `.csv`, `.csv.gz`, `.csv.zst`, or `.zip` files. ZIPs may contain multiple data files and Databento symbology JSON sidecars.
+- For multi-GB data, enter one or more local file/folder paths. This avoids copying the upload through the browser and streams chunks into a disk-backed staging database.
 
-**Published conclusion:** FVGs showed weak, short-lived, context-dependent predictive structure. The evidence did not support persistent deterministic “magnetism” or an FVG-only trading edge.
+The importer resolves native DBN symbols with Databento’s mapping metadata, combines batch parts, rejects archive traversal/encryption/bombs, and builds both:
 
-## Repository structure
+- `data/processed/mnq_active_1m.parquet`
+- `data/processed/active_mnq.pkl` (the canonical scripts’ input)
 
-- `src/original/` — exact analysis scripts retained from the original study run.
-- `scripts/download_databento.py` — recreates the raw parent-symbol one-minute OHLCV input.
-- `scripts/prepare_active_contract.py` — rebuilds the active MNQ one-minute series used by the study.
-- `scripts/run_original.py` — runs the original scripts portably by changing only environment-specific file paths in a temporary copy.
-- `START_HERE.bat` — Windows one-click launcher; creates a private environment, installs dependencies, and opens the dashboard.
-- `dashboard.py` — interactive experiment cards, published charts, source viewer, reproduction controls, and local-output browser.
-- `bootstrap.py` — dependency/bootstrap logic used by the one-click launcher.
-- `reference_results/` — frozen published metrics displayed by the dashboard.
-- `run_all.py` — executes the complete published experiment family.
-- `fvg_research/` — shared reusable helpers.
-- `docs/EXPERIMENTS.md` — exact construction of every experiment.
-- `results/` — generated experiment outputs.
-- `data/` — local raw/processed data locations; licensed market data is not committed.
+Active construction keeps only strict quarterly MNQ outrights (`MNQH6`, `MNQZ25`, `MNQH2026`, etc.; never spreads), assigns the trade date at 18:00 America/New_York, chooses the highest total daily-volume contract, deduplicates overlaps, validates OHLC, and concatenates without back-adjustment.
 
-## Install
-
-```bash
-git clone https://github.com/t8pium/fvg-predictive-strength.git
-cd fvg-predictive-strength
-
-python -m venv .venv
-
-# macOS / Linux
-source .venv/bin/activate
-
-# Windows
-# .venv\Scripts\activate
-
-pip install -r requirements.txt
-pip install -e .
-```
-
-Python 3.10+ is required.
-
-## Obtain the market data
-
-### Direct file upload
-
-The easiest offline path is inside the local Research Lab:
-
-1. Double-click `START_HERE.bat`.
-2. Open **Data Setup**.
-3. Under **Option B — Upload your own Databento file**, drag in one or more files.
-4. Click **Import file(s) + build active MNQ dataset**.
-
-The same uploader also appears inside an experiment's **Reproduce** tab whenever the dataset is missing.
-
-Supported uploads:
-
-- Databento `.dbn` and `.dbn.zst`
-- `.parquet` / `.pq`
-- `.csv` / `.csv.gz`
-- `.zip` containing any supported file type
-- multiple files from a Databento batch download
-
-Large local uploads are allowed up to 4 GB by the bundled Streamlit configuration.
-
-
-The raw historical market data is licensed and is **not redistributed**.
-
-The study used:
-
-- Databento dataset: `GLBX.MDP3`
-- schema: `ohlcv-1m`
-- input symbology: `parent`
-- parent symbol: `MNQ.FUT`
-- period: 2020-01-01 through 2026-07-10
-
-With your own Databento key:
-
-```bash
-export DATABENTO_API_KEY="YOUR_KEY"
-python scripts/download_databento.py
-python scripts/prepare_active_contract.py
-```
-
-The preparation script reproduces the published active-series construction:
-
-1. keep quarterly MNQ outright contracts only: `MNQ[HMUZ][0-9]`;
-2. assign CME trade date using America/New_York, with bars at or after 18:00 ET assigned to the following date;
-3. sum total one-minute volume by listed contract for each trade date;
-4. select the highest-volume outright for that trading date;
-5. concatenate the selected bars without back-adjusting prices.
-
-Expected published snapshot:
+Published input snapshot:
 
 ```text
 active rows: 2,303,483
@@ -124,86 +41,70 @@ duplicate timestamps: 0
 missing OHLC: 0
 ```
 
-## Mechanical FVG definition
+Databento range ends are exclusive, so the downloader requests through `2026-07-11` to include all of July 10.
 
-For completed candles A = t−2, B = t−1, C = t:
+## Published reference versus local reproduction
 
-```text
-Bullish FVG: Low[C]  > High[A]
-Bearish FVG: High[C] < Low[A]
-```
+The dashboard labels every frozen value **PUBLISHED REFERENCE**. A **LOCAL REPRODUCTION** check appears only after a successful experiment manifest proves that the displayed file was generated from the current processed dataset. Old output is not treated as a fresh run.
 
-Bullish zone = `High[A] → Low[C]`.
+Local runs write CSV/JSON/PNG artifacts below `results/` and a manifest below `results/_runs/`. Failures and child output remain visible in the UI; full logs are stored in `results/_logs/`.
 
-Bearish zone = `High[C] → Low[A]`.
+## Canonical research code
 
-An FVG becomes known only **after candle C closes**.
-
-## Run the published experiment suite
-
-```bash
-python run_all.py
-```
-
-Individual canonical suites:
-
-```bash
-# Deep one-minute study:
-# raw fill, matched controls, stratification, logistic model, sensitivity, OOS
-python scripts/run_original.py detailed-1m
-
-# Multi-timeframe attraction, age decay, continuation, retest reaction, OOS
-python scripts/run_original.py multi-tf --tf 1
-python scripts/run_original.py multi-tf --tf 5
-python scripts/run_original.py multi-tf --tf 15
-python scripts/run_original.py multi-tf --tf 60
-python scripts/run_original.py multi-tf --tf 240
-
-# Midpoint / consequent encroachment
-python scripts/run_original.py midpoint --tf 1
-python scripts/run_original.py midpoint --tf 5
-python scripts/run_original.py midpoint --tf 15
-python scripts/run_original.py midpoint --tf 60
-python scripts/run_original.py midpoint --tf 240
-
-# Candle-body / CE acceptance study from 1m through daily
-python scripts/run_original.py ce-body
-```
-
-## Canonical source map
+The original analysis files are preserved byte-for-byte under `src/original/`:
 
 | Script | Experiment families |
 |---|---|
-| `src/original/fvg_final_fast.py` | Raw fill rates, detailed 1m matched attraction, directional movement, distance/size/session/volatility/trend/displacement/year stratification, sensitivity, logistic model, 70/30 holdout |
-| `src/original/fvg_strength_one_tf.py` | Multi-timeframe attraction, age decay, formation continuation, first-touch retest reaction, 5-bar chronological holdout |
-| `src/original/fvg_midpoint_reaction.py` | Exact midpoint / CE symmetric race with matched controls and yearly breakdown |
-| `src/original/fvg_ce_rejection_study.py` | Body-close penetration bands, exact 50%, 45–55%, first-touch sensitivity, 1m→daily execution, exploratory 4H 45–50% result |
+| `fvg_final_fast.py` | Raw fill, detailed matched attraction, controls/regimes/logit, chronological robustness |
+| `fvg_strength_one_tf.py` | Multi-timeframe attraction, age decay, continuation, first-touch reaction, robustness |
+| `fvg_midpoint_reaction.py` | Exact midpoint / consequent-encroachment race |
+| `fvg_ce_rejection_study.py` | Candle-body depth/CE study and trade-level outputs |
 
-For exact matching rules, horizons, censoring, ambiguity handling, random seeds, and validation design, read:
+`scripts/run_original.py` verifies their SHA-256 hashes, rewrites only known legacy container-path constants in a temporary parsed copy, and records exactly which outputs changed. It never edits `src/original/`.
 
-**[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)**
+Read [the experiment definitions](docs/EXPERIMENTS.md) and [the scientific audit](docs/SCIENTIFIC_AUDIT.md) before interpreting results. The audit documents preserved right-censoring, holdout, clustering, roll, and exploratory-multiplicity limitations rather than silently changing published methodology.
 
-## Original-script integrity
+## Command-line reproduction
 
-The files under `src/original/` are the analysis scripts preserved from the original research run. They intentionally retain the original container paths.
+The launcher is the normal path. For an existing Python environment:
 
-`scripts/run_original.py` loads an original script, changes only machine-specific input/output paths in a temporary copy, and executes that temporary file. The original files are not modified.
+```bash
+python -m pip install -e .
+python scripts/prepare_active_contract.py --input YOUR_BATCH.zip
+python scripts/run_original.py detailed-1m
+python scripts/run_original.py multi-tf --tf 1
+python scripts/run_original.py midpoint --tf 1
+python scripts/run_original.py ce-body --ce-tfs 60,120,240
+```
 
-## Important limitations
+Use repeated `--input` arguments for multiple files. A directory is also accepted. To run every canonical family, use `python run_all.py`.
 
-- The primary market is MNQ.
-- One-minute OHLC cannot reveal TP/SL ordering when both trade inside the same minute.
-- Matched controls reduce obvious confounding but do not prove causality.
-- FVGs from the same move/day are not fully independent.
-- Many timeframe/depth cells were inspected, so post-hoc strong subgroups require independent replication.
-- Statistical predictability does not imply net profitability after costs and execution.
+## Repository map
 
-## Data licensing
+- `START_HERE.bat`, `START_HERE.command`, `bootstrap.py` — one-click bootstrapping.
+- `dashboard.py` — nine-card local Research Lab.
+- `fvg_research/` — portable IO, active-contract, detector, matching, bars, outcomes, and dashboard helpers.
+- `scripts/` — download, preparation, canonical runner, CE postprocessing, and CI policy.
+- `src/original/` — immutable published analysis scripts.
+- `reference_results/reference_metrics.json` — frozen published evidence.
+- `tests/` — synthetic package, detector, IO, DBN mapping, active-contract, UI, wrapper, and postprocessing tests.
+- `data/` and `results/` — ignored local inputs/outputs (only their README files are tracked).
 
-No Databento market data is committed to this repository. The downloader and preparation scripts are provided so readers with their own licensed access can recreate the inputs.
+## Verification
 
-## Portfolio
+```bash
+python -m pip check
+python -m compileall -q .
+python -m unittest discover -s tests -v
+python scripts/ci_policy_check.py
+```
 
-Full write-up and experiment pages:
+CI runs the install/import/compile/test/policy suite on Ubuntu (Python 3.11 and 3.13) and Windows (Python 3.12). It also rejects canonical hash drift, legacy container-path leakage outside `src/original`, and committed licensed/generated data.
 
-**https://t8pium.github.io/projects/fvg-predictive-strength/**
+## Important limits
+
+- Browser upload is capped at 1 GiB; use the local-path importer for larger data.
+- One-minute OHLC cannot reveal TP/SL ordering inside the same minute. The CE study conservatively counts same-minute ambiguity as a loss.
+- Vendor history corrections can produce small differences from the frozen reference.
+- Matching reduces obvious confounding but does not establish causality.
+- The 4H 45–50% CE result is exploratory, not independently confirmed.

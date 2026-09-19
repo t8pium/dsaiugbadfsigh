@@ -6,42 +6,44 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
+          cache: pip
 
-      - name: Install minimal verification dependencies
+      - name: Install pinned package
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy pandas
+          python -m pip install -e .
+          python -m pip check
 
-      - name: Compile Python sources
-        run: |
-          python -m compileall -q dashboard.py bootstrap.py scripts fvg_research src/original tests
+      - name: Compile every Python source
+        run: python -m compileall -q .
 
-      - name: Verify child script can import local package
+      - name: Verify package outside repository cwd
+        run: python -c "import os,tempfile; os.chdir(tempfile.gettempdir()); import fvg_research; print(fvg_research.__file__)"
+
+      - name: Verify child-script startup
         run: |
           python scripts/prepare_active_contract.py --help
+          python scripts/run_original.py --help
+          python scripts/postprocess_body_bands.py --help
 
-      - name: Run synthetic FVG tests
-        run: |
-          python -m unittest discover -s tests -v
+      - name: Run synthetic and dashboard tests
+        run: python -m unittest discover -s tests -v
 
-      - name: Validate frozen reference metrics
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p = Path("reference_results/reference_metrics.json")
-          data = json.loads(p.read_text())
-          assert data["study"]["active_1m_rows"] == 2303483
-          assert "matched_attraction" in data["experiments"]
-          assert len(data["experiments"]) == 9
-          print("Reference manifest OK")
-          PY
+      - name: Enforce reproducibility policy
+        run: python scripts/ci_policy_check.py

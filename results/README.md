@@ -1,13 +1,5 @@
-# Results
+# Local generated results
 
-This directory is populated by the experiment scripts.
+Canonical experiment output is written here and ignored by Git. `_runs/` records success/failure, source hash, input mtime, arguments, and files changed by each run; `_logs/` retains child-process output.
 
-The public portfolio pages report the reference findings from the original study. Re-running the experiments can produce slightly different values if:
-
-- the vendor corrects historical data,
-- the retrieval period differs,
-- the active-contract construction differs,
-- library behavior changes,
-- a different random seed is intentionally used.
-
-The canonical original scripts contain their fixed random seeds.
+The dashboard treats an output as a **LOCAL REPRODUCTION** only when the latest successful manifest links it to the current processed dataset. Frozen published values always come from `reference_results/reference_metrics.json`.

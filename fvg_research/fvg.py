@@ -1,75 +1,77 @@
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
+
 from .bars import atr
 
+
 def detect_fvgs(df: pd.DataFrame, tick_size: float = 0.25) -> pd.DataFrame:
-    """Detect FVGs causally. Each event exists only after candle C closes."""
+    """Detect three-candle FVGs at candle C close without lookahead."""
+    if tick_size <= 0:
+        raise ValueError("tick_size must be positive")
     a_high = df["high"].shift(2)
     a_low = df["low"].shift(2)
-    bull = df["low"] > a_high
-    bear = df["high"] < a_low
-
+    bull_width = df["low"] - a_high
+    bear_width = a_low - df["high"]
+    epsilon = tick_size * 1e-9
+    bull = bull_width >= tick_size - epsilon
+    bear = bear_width >= tick_size - epsilon
     direction = np.where(bull, 1, np.where(bear, -1, 0))
-    near = np.where(bull, df["low"], np.where(bear, df["high"], np.nan))
-    far = np.where(bull, a_high, np.where(bear, a_low, np.nan))
-    lower = np.minimum(near, far)
-    upper = np.maximum(near, far)
+    near = pd.Series(np.where(bull, df["low"], np.where(bear, df["high"], np.nan)), index=df.index)
+    far = pd.Series(np.where(bull, a_high, np.where(bear, a_low, np.nan)), index=df.index)
+    lower = pd.concat([near, far], axis=1).min(axis=1)
+    upper = pd.concat([near, far], axis=1).max(axis=1)
 
-    e = pd.DataFrame(index=df.index)
-    e["direction"] = direction
-    e["near"] = near
-    e["far"] = far
-    e["lower"] = lower
-    e["upper"] = upper
-    e["mid"] = (lower + upper) / 2
-    e["width"] = upper - lower
-    e["ticks"] = e["width"] / tick_size
-    e["close_at_formation"] = df["close"]
-    e["atr14"] = atr(df, 14)
-    e["width_atr"] = e["width"] / e["atr14"]
-    e["distance"] = np.where(
-        e["direction"] == 1,
-        np.maximum(df["close"].to_numpy() - e["upper"].to_numpy(), 0.0),
-        np.maximum(e["lower"].to_numpy() - df["close"].to_numpy(), 0.0),
+    events = pd.DataFrame(index=df.index)
+    events["direction"] = direction
+    events["near"] = near
+    events["far"] = far
+    events["lower"] = lower
+    events["upper"] = upper
+    events["mid"] = (lower + upper) / 2
+    events["width"] = upper - lower
+    events["ticks"] = events["width"] / tick_size
+    events["close_at_formation"] = df["close"]
+    events["atr14"] = atr(df, 14)
+    events["width_atr"] = events["width"] / events["atr14"]
+    events["distance"] = np.where(
+        events["direction"] == 1,
+        (df["close"] - events["upper"]).clip(lower=0),
+        (events["lower"] - df["close"]).clip(lower=0),
     )
-    e["distance_atr"] = e["distance"] / e["atr14"]
-    e["body_b"] = (df["close"].shift(1) - df["open"].shift(1)).abs()
-    e["body_b_atr"] = e["body_b"] / e["atr14"]
-    return e[e["direction"] != 0].dropna(subset=["lower","upper","atr14"])
+    events["distance_atr"] = events["distance"] / events["atr14"]
+    events["body_b"] = (df["close"].shift(1) - df["open"].shift(1)).abs()
+    events["body_b_atr"] = events["body_b"] / events["atr14"]
+    return events.loc[events["direction"] != 0].dropna(subset=["lower", "upper", "atr14"])
+
 
 def forward_extrema(df: pd.DataFrame, horizon: int):
-    """Future extrema over bars t+1..t+horizon, excluding the event bar."""
-    hi = df["high"].shift(-1).iloc[::-1].rolling(horizon, min_periods=1).max().iloc[::-1]
-    lo = df["low"].shift(-1).iloc[::-1].rolling(horizon, min_periods=1).min().iloc[::-1]
-    return hi, lo
+    if horizon < 1:
+        raise ValueError("horizon must be >= 1")
+    high = df["high"].shift(-1).iloc[::-1].rolling(horizon, min_periods=1).max().iloc[::-1]
+    low = df["low"].shift(-1).iloc[::-1].rolling(horizon, min_periods=1).min().iloc[::-1]
+    return high, low
 
-def touch_at_horizon(df: pd.DataFrame, zones: pd.DataFrame, horizon: int, time_col: str | None = None) -> pd.Series:
-    hi, lo = forward_extrema(df, horizon)
-    idx = pd.DatetimeIndex(zones[time_col]) if time_col else zones.index
-    mx = hi.reindex(idx).to_numpy()
-    mn = lo.reindex(idx).to_numpy()
-    d = zones["direction"].to_numpy()
-    near = zones["near"].to_numpy()
-    hit = np.where(d == 1, mn <= near, mx >= near)
+
+def _at_horizon(df, zones, horizon, level, time_col=None):
+    high, low = forward_extrema(df, horizon)
+    index = pd.DatetimeIndex(zones[time_col]) if time_col else zones.index
+    maximum = high.reindex(index).to_numpy()
+    minimum = low.reindex(index).to_numpy()
+    direction = zones["direction"].to_numpy()
+    threshold = zones[level].to_numpy()
+    hit = np.where(direction == 1, minimum <= threshold, maximum >= threshold)
     return pd.Series(hit, index=zones.index)
 
-def full_at_horizon(df: pd.DataFrame, zones: pd.DataFrame, horizon: int, time_col: str | None = None) -> pd.Series:
-    hi, lo = forward_extrema(df, horizon)
-    idx = pd.DatetimeIndex(zones[time_col]) if time_col else zones.index
-    mx = hi.reindex(idx).to_numpy()
-    mn = lo.reindex(idx).to_numpy()
-    d = zones["direction"].to_numpy()
-    far = zones["far"].to_numpy()
-    hit = np.where(d == 1, mn <= far, mx >= far)
-    return pd.Series(hit, index=zones.index)
 
-def midpoint_at_horizon(df: pd.DataFrame, zones: pd.DataFrame, horizon: int, time_col: str | None = None) -> pd.Series:
-    hi, lo = forward_extrema(df, horizon)
-    idx = pd.DatetimeIndex(zones[time_col]) if time_col else zones.index
-    mx = hi.reindex(idx).to_numpy()
-    mn = lo.reindex(idx).to_numpy()
-    d = zones["direction"].to_numpy()
-    mid = zones["mid"].to_numpy()
-    hit = np.where(d == 1, mn <= mid, mx >= mid)
-    return pd.Series(hit, index=zones.index)
+def touch_at_horizon(df, zones, horizon, time_col=None):
+    return _at_horizon(df, zones, horizon, "near", time_col)
+
+
+def full_at_horizon(df, zones, horizon, time_col=None):
+    return _at_horizon(df, zones, horizon, "far", time_col)
+
+
+def midpoint_at_horizon(df, zones, horizon, time_col=None):
+    return _at_horizon(df, zones, horizon, "mid", time_col)

@@ -4,19 +4,31 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from fvg_research.dashboard_helpers import (
+    discover_results,
+    load_latest_success,
+    parse_local_paths,
+    safe_upload_name,
+)
+
 ROOT = Path(__file__).resolve().parent
 REF_PATH = ROOT / "reference_results" / "reference_metrics.json"
 DATA_FILE = ROOT / "data" / "processed" / "active_mnq.pkl"
 RESULTS = ROOT / "results"
 UPLOADS = ROOT / "data" / "uploads"
+LOGS = RESULTS / "_logs"
 UPLOADS.mkdir(parents=True, exist_ok=True)
+LOGS.mkdir(parents=True, exist_ok=True)
 GITHUB = "https://github.com/t8pium/fvg-predictive-strength"
+MAX_BROWSER_UPLOAD = 1024**3
+LARGE_UPLOAD_WARNING = 512 * 1024**2
 
 with REF_PATH.open("r", encoding="utf-8") as fh:
     REFERENCE = json.load(fh)
@@ -168,59 +180,59 @@ def chart_reference(exp_id: str) -> pd.DataFrame:
         df = pd.DataFrame({"Horizon (minutes/bars)": e["horizons_min"], "Touch probability (%)": [x * 100 for x in e["touch_rate"]]})
         fig = px.line(df, x="Horizon (minutes/bars)", y="Touch probability (%)", markers=True, log_x=True)
         fig.update_layout(title="Published raw 1m FVG touch probability", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption(f"Eventual touch in available sample: {e['eventual_touch']*100:.3f}% · eventual full fill: {e['eventual_full']*100:.3f}%")
         return df
     if exp_id == "matched_attraction":
         df = pd.DataFrame(e["deep_1m"])
         fig = px.bar(df, x="horizon", y="difference_pp", text_auto=".2f")
         fig.update_layout(title="FVG − matched-control touch probability", yaxis_title="Difference (percentage points)", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "age_decay":
         df = pd.DataFrame(e["one_minute"])
         fig = px.bar(df, x="window", y="difference_pp", text_auto=".2f")
         fig.update_layout(title="1m conditional FVG advantage as the gap ages", yaxis_title="Difference (percentage points)", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "continuation":
         df = pd.DataFrame(e["five_bar"])
         fig = px.bar(df, x="timeframe", y="difference_atr", text_auto=".3f")
         fig.update_layout(title="Five-bar continuation: FVG move − matched non-FVG move", yaxis_title="ATR-normalized return difference", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "retest":
         df = pd.DataFrame(e["reaction"])
         fig = px.bar(df, x="timeframe", y="difference_pp", text_auto=".2f")
         fig.update_layout(title="First-touch reaction advantage", yaxis_title="Difference (percentage points)", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "midpoint":
         df = pd.DataFrame(e["reaction"])
         long = df.melt(id_vars=["timeframe"], value_vars=["fvg", "control"], var_name="Zone", value_name="Rejection rate (%)")
         fig = px.bar(long, x="timeframe", y="Rejection rate (%)", color="Zone", barmode="group")
         fig.update_layout(title="Published midpoint rejection race", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "body_acceptance":
         df = pd.DataFrame(e["four_hour_bands"])
         fig = px.bar(df, x="band", y="mean_R", text_auto=".3f", hover_data=["N", "win_rate"])
         fig.update_layout(title="Exploratory 4H body-close bands", yaxis_title="Mean gross R", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.warning("The 4H 45–50% cell was discovered after searching multiple bands/timeframes. It is hypothesis-generating, not a confirmed edge.")
         return df
     if exp_id == "controls_regimes":
         df = pd.DataFrame(e["distance"])
         fig = px.line(df, x="bucket", y=["fvg", "control"], markers=True)
         fig.update_layout(title=f"60m touch rate by starting distance · FVG odds ratio ≈ {e['fvg_odds_ratio_60m']:.3f}", yaxis_title="Touch rate (%)", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     if exp_id == "oos":
         df = pd.DataFrame(e["five_bar"])
         long = df.melt(id_vars=["timeframe"], value_vars=["train_pp", "test_pp"], var_name="Split", value_name="Difference (pp)")
         fig = px.bar(long, x="timeframe", y="Difference (pp)", color="Split", barmode="group")
         fig.update_layout(title="Five-native-bar matched attraction: early vs later sample", height=390)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return df
     return pd.DataFrame()
 
@@ -235,14 +247,20 @@ def run_process(args: list[str], env: dict[str, str] | None = None):
     existing = child_env.get("PYTHONPATH", "")
     child_env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing if existing else "")
 
-    p = subprocess.run(
-        cmd,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        env=child_env,
-    )
-    return p.returncode, (p.stdout or "") + ("\n" + p.stderr if p.stderr else "")
+    log_path = LOGS / f"run_{time.time_ns()}.log"
+    try:
+        with log_path.open("w", encoding="utf-8", errors="replace") as log:
+            process = subprocess.run(
+                cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                text=True, env=child_env,
+            )
+        content = log_path.read_text(encoding="utf-8", errors="replace")
+        if len(content) > 250_000:
+            prefix = f"[Earlier output omitted; full log: {log_path.relative_to(ROOT)}]\n"
+            content = prefix + content[-250_000:]
+        return process.returncode, content
+    except OSError as exc:
+        return 127, f"Could not start child process: {exc}"
 
 def run_original(study: str, tf: int | None = None, ce_tfs: list[int] | None = None):
     args = [str(ROOT / "scripts" / "run_original.py"), study]
@@ -253,10 +271,11 @@ def run_original(study: str, tf: int | None = None, ce_tfs: list[int] | None = N
     return run_process(args)
 
 
-def _safe_upload_name(name: str) -> str:
-    """Keep only a local filename; never honor an uploaded path."""
-    cleaned = Path(name).name.replace("\\", "_").replace("/", "_")
-    return cleaned or "databento_upload"
+def preparation_args(paths: list[Path]) -> list[str]:
+    args = [str(ROOT / "scripts" / "prepare_active_contract.py")]
+    for path in paths:
+        args.extend(["--input", str(path)])
+    return args
 
 
 def save_uploaded_files(uploaded_files, key_prefix: str) -> list[Path]:
@@ -265,7 +284,11 @@ def save_uploaded_files(uploaded_files, key_prefix: str) -> list[Path]:
     paths: list[Path] = []
 
     for number, uploaded in enumerate(uploaded_files, 1):
-        target = session_dir / f"{number:02d}_{_safe_upload_name(uploaded.name)}"
+        if (getattr(uploaded, "size", 0) or 0) > MAX_BROWSER_UPLOAD:
+            raise ValueError(
+                f"{uploaded.name} exceeds the 1 GiB browser limit; use the local-path importer."
+            )
+        target = session_dir / f"{number:02d}_{safe_upload_name(uploaded.name)}"
         uploaded.seek(0)
         with target.open("wb") as dst:
             while True:
@@ -303,13 +326,18 @@ def render_databento_upload(key_prefix: str, compact: bool = False):
     names = ", ".join(x.name for x in uploaded[:4])
     if len(uploaded) > 4:
         names += f", +{len(uploaded)-4} more"
-    st.info(f"Selected {len(uploaded)} file(s) · {total / (1024**2):,.1f} MB\\n\\n{names}")
+    st.info(f"Selected {len(uploaded)} file(s) · {total / (1024**2):,.1f} MB\n\n{names}")
+    if total > LARGE_UPLOAD_WARNING:
+        st.warning(
+            "Large browser uploads may duplicate data in memory. For multi-GB data, "
+            "use the local-path importer below."
+        )
 
     if st.button(
         "Import file(s) + build active MNQ dataset",
         type="primary",
         key=f"{key_prefix}_process_upload",
-        use_container_width=compact,
+        width="stretch" if compact else "content",
     ):
         try:
             saved = save_uploaded_files(uploaded, key_prefix)
@@ -317,19 +345,15 @@ def render_databento_upload(key_prefix: str, compact: bool = False):
             st.error(f"Could not save uploaded file(s): {exc}")
             return False
 
-        args = [str(ROOT / "scripts" / "prepare_active_contract.py")]
-        for path in saved:
-            args.extend(["--input", str(path)])
-
         with st.spinner("Reading the upload and rebuilding the active MNQ contract series..."):
-            rc, log = run_process(args)
+            rc, log = run_process(preparation_args(saved))
 
         st.session_state[f"{key_prefix}_upload_log"] = log
         st.session_state[f"{key_prefix}_upload_rc"] = rc
 
         if rc == 0 and DATA_FILE.exists():
             st.success("Upload processed successfully. The MNQ dataset is ready for experiments.")
-            return True
+            st.rerun()
 
         st.error("The file could not be prepared. Open the import log below for details.")
 
@@ -342,11 +366,36 @@ def render_databento_upload(key_prefix: str, compact: bool = False):
 
     return DATA_FILE.exists()
 
+
+def render_local_path_import(key_prefix: str):
+    value = st.text_area(
+        "Local file or folder path(s)", key=f"{key_prefix}_local_paths",
+        placeholder=r"C:\Users\Test User\Downloads\mnq-batch.zip",
+        help="Enter one path per line. Files remain in place and are streamed from disk.",
+    )
+    st.caption("Recommended for multi-GB datasets. Paths are passed as arguments, never shell commands.")
+    if st.button("Import from local path", key=f"{key_prefix}_local_import", disabled=not value.strip()):
+        paths = parse_local_paths(value)
+        missing = [str(path) for path in paths if not path.exists()]
+        if missing:
+            st.error("Path not found: " + ", ".join(missing))
+            return False
+        with st.spinner("Streaming local data and rebuilding the active MNQ series..."):
+            rc, log = run_process(preparation_args(paths))
+        st.session_state[f"{key_prefix}_local_log"] = log
+        st.session_state[f"{key_prefix}_local_rc"] = rc
+        if rc == 0 and DATA_FILE.exists():
+            st.success("Local data imported successfully.")
+            st.rerun()
+        else:
+            st.error("Import failed. Review the log below.")
+    if st.session_state.get(f"{key_prefix}_local_log"):
+        with st.expander("Local import log", expanded=st.session_state.get(f"{key_prefix}_local_rc") != 0):
+            st.code(st.session_state[f"{key_prefix}_local_log"], language="text")
+    return DATA_FILE.exists()
+
 def result_files() -> list[Path]:
-    if not RESULTS.exists():
-        return []
-    files = list(RESULTS.rglob("*.csv")) + list(RESULTS.rglob("*.json"))
-    return sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+    return discover_results(RESULTS)
 
 def display_result_browser():
     files = result_files()
@@ -358,25 +407,50 @@ def display_result_browser():
     p = ROOT / selected
     if p.suffix == ".csv":
         df = pd.read_csv(p)
-        st.dataframe(df, use_container_width=True, height=min(460, 36 * (len(df) + 1)))
+        st.dataframe(df, width="stretch", height=min(460, 36 * (len(df) + 1)))
         numeric = list(df.select_dtypes(include="number").columns)
         if len(numeric) >= 2 and len(df) <= 500:
             x = st.selectbox("Chart x", list(df.columns), key="generic_x")
             y = st.selectbox("Chart y", numeric, key="generic_y")
             try:
-                st.plotly_chart(px.line(df, x=x, y=y, markers=True), use_container_width=True)
+                st.plotly_chart(px.line(df, x=x, y=y, markers=True), width="stretch")
             except Exception:
                 pass
-    else:
+    elif p.suffix == ".json":
         with p.open("r", encoding="utf-8") as fh:
-            st.json(json.load(fh))
+            try:
+                st.json(json.load(fh))
+            except json.JSONDecodeError as exc:
+                st.error(f"Invalid JSON output: {exc}")
+    else:
+        st.image(str(p), caption=selected)
+
+
+def latest_success(study: str) -> dict | None:
+    return load_latest_success(RESULTS, DATA_FILE, study)
+
+
+def fresh_file(path: Path, studies: tuple[str, ...]) -> bool:
+    relative = str(path.relative_to(ROOT))
+    return any(
+        payload and relative in payload.get("generated_files", [])
+        for payload in (latest_success(study) for study in studies)
+    )
+
+
+def latest_generated(study: str, prefix: str) -> Path | None:
+    payload = latest_success(study)
+    if not payload:
+        return None
+    matches = [ROOT / value for value in payload.get("generated_files", []) if Path(value).name.startswith(prefix)]
+    return matches[-1] if matches else None
 
 def verification(exp_id: str):
     rows = []
     try:
         if exp_id == "raw_fill":
             p = RESULTS / "detailed_1m" / "summary.json"
-            if p.exists():
+            if fresh_file(p, ("detailed-1m",)):
                 actual = json.load(p.open("r", encoding="utf-8"))
                 rows += [
                     ("5m touch %", actual["raw_touch_5"] * 100, REFERENCE["experiments"]["raw_fill"]["touch_rate"][0] * 100, 0.35),
@@ -385,43 +459,62 @@ def verification(exp_id: str):
                 ]
         elif exp_id == "matched_attraction":
             p = RESULTS / "detailed_1m" / "main_results.csv"
-            if p.exists():
+            if fresh_file(p, ("detailed-1m",)):
                 df = pd.read_csv(p)
                 refs = {"touch_5": 3.0275, "touch_60": 0.5770, "touch_1380": 0.0030}
                 for test, expected in refs.items():
                     row = df.loc[df["test"] == test]
                     if len(row):
                         rows.append((f"{test} difference pp", float(row.iloc[0]["Difference"]) * 100, expected, 0.50))
+            else:
+                p = latest_generated("multi-tf", "magnet_tf")
+                if p:
+                    df = pd.read_csv(p)
+                    row = df.loc[df["horizon_bars"] == 5]
+                    if len(row):
+                        tf = int(row.iloc[0]["timeframe_min"])
+                        labels = {1:"1m", 5:"5m", 15:"15m", 60:"1H", 240:"4H"}
+                        expected = next(x["difference_pp"] for x in REFERENCE["experiments"]["matched_attraction"]["multi_tf_5bar"] if x["timeframe"] == labels[tf])
+                        rows.append((f"{labels[tf]} five-bar difference pp", float(row.iloc[0]["Difference"]) * 100, expected, 0.75))
         elif exp_id == "age_decay":
-            p = RESULTS / "multi_tf" / "decay_tf1.csv"
-            if p.exists():
+            p = latest_generated("multi-tf", "decay_tf")
+            if p:
                 df = pd.read_csv(p)
                 row = df[(df["survived_through_bars"] == 1) & (df["next_horizon_bars"] == 3)]
-                if len(row):
+                if len(row) and int(row.iloc[0]["timeframe_min"]) == 1:
                     rows.append(("1→3 bar difference pp", float(row.iloc[0]["Difference"]) * 100, 3.09, 0.75))
         elif exp_id == "continuation":
-            p = RESULTS / "multi_tf" / "formation_tf1.csv"
-            if p.exists():
+            p = latest_generated("multi-tf", "formation_tf")
+            if p:
                 df = pd.read_csv(p)
                 row = df[df["horizon_bars"] == 5]
                 if len(row):
-                    rows.append(("1m five-bar difference ATR", float(row.iloc[0]["Difference_ATR"]), 0.0271, 0.02))
+                    tf = int(row.iloc[0]["timeframe_min"])
+                    labels = {1:"1m", 5:"5m", 15:"15m", 60:"1H", 240:"4H"}
+                    expected = next(x["difference_atr"] for x in REFERENCE["experiments"]["continuation"]["five_bar"] if x["timeframe"] == labels[tf])
+                    rows.append((f"{labels[tf]} five-bar difference ATR", float(row.iloc[0]["Difference_ATR"]), expected, 0.03))
         elif exp_id == "retest":
-            p = RESULTS / "multi_tf" / "reaction_tf1.csv"
-            if p.exists():
+            p = latest_generated("multi-tf", "reaction_tf")
+            if p:
                 df = pd.read_csv(p)
                 row = df[df["metric"] == "1gap_rejection_before_fullfill"]
                 if len(row):
-                    rows.append(("1m reaction difference pp", float(row.iloc[0]["Difference"]) * 100, 2.32, 1.00))
+                    tf = int(row.iloc[0]["timeframe_min"])
+                    labels = {1:"1m", 5:"5m", 15:"15m", 60:"1H", 240:"4H"}
+                    expected = next(x["difference_pp"] for x in REFERENCE["experiments"]["retest"]["reaction"] if x["timeframe"] == labels[tf])
+                    rows.append((f"{labels[tf]} reaction difference pp", float(row.iloc[0]["Difference"]) * 100, expected, 1.25))
         elif exp_id == "midpoint":
-            p = RESULTS / "midpoint" / "midpoint_tf1.csv"
-            if p.exists():
+            p = latest_generated("midpoint", "midpoint_tf")
+            if p and "year" not in p.name:
                 df = pd.read_csv(p)
                 if len(df):
-                    rows.append(("1m midpoint difference pp", float(df.iloc[0]["Difference"]) * 100, 0.92, 1.00))
+                    tf = int(df.iloc[0]["timeframe_min"])
+                    labels = {1:"1m", 5:"5m", 15:"15m", 60:"1H", 240:"4H"}
+                    expected = next(x["difference_pp"] for x in REFERENCE["experiments"]["midpoint"]["reaction"] if x["timeframe"] == labels[tf])
+                    rows.append((f"{labels[tf]} midpoint difference pp", float(df.iloc[0]["Difference"]) * 100, expected, 1.25))
         elif exp_id == "body_acceptance":
             p = RESULTS / "ce_body" / "body_depth_5pct.csv"
-            if p.exists():
+            if fresh_file(p, ("ce-body",)):
                 df = pd.read_csv(p)
                 row = df[(df["timeframe"] == "4H") & (df["depth_band"] == "45-50%")]
                 if len(row):
@@ -430,12 +523,12 @@ def verification(exp_id: str):
 
         elif exp_id == "controls_regimes":
             p = RESULTS / "detailed_1m" / "logistic_60m.json"
-            if p.exists():
+            if fresh_file(p, ("detailed-1m",)):
                 actual = json.load(p.open("r", encoding="utf-8"))
                 rows.append(("FVG odds ratio", float(actual["fvg_odds_ratio"]), 1.0789, 0.03))
         elif exp_id == "oos":
             p = RESULTS / "detailed_1m" / "train_test.csv"
-            if p.exists():
+            if fresh_file(p, ("detailed-1m",)):
                 df = pd.read_csv(p)
                 tr = df[df["split"] == "train"]
                 te = df[df["split"] == "test"]
@@ -443,6 +536,17 @@ def verification(exp_id: str):
                     rows.append(("Deep 1m train difference pp", float(tr.iloc[0]["Difference"]) * 100, 0.79, 0.35))
                 if len(te):
                     rows.append(("Deep 1m test difference pp", float(te.iloc[0]["Difference"]) * 100, 0.08, 0.35))
+            else:
+                p = latest_generated("multi-tf", "oos_tf")
+                if p:
+                    df = pd.read_csv(p)
+                    tf = int(df.iloc[0]["timeframe_min"])
+                    labels = {1:"1m", 5:"5m", 15:"15m", 60:"1H", 240:"4H"}
+                    reference = next(x for x in REFERENCE["experiments"]["oos"]["five_bar"] if x["timeframe"] == labels[tf])
+                    for split, key in (("train", "train_pp"), ("test", "test_pp")):
+                        row = df.loc[df["split"] == split]
+                        if len(row):
+                            rows.append((f"{labels[tf]} {split} difference pp", float(row.iloc[0]["Difference"]) * 100, reference[key], 1.0))
     except Exception as exc:
         st.warning(f"Could not parse verification output: {exc}")
         return
@@ -453,7 +557,7 @@ def verification(exp_id: str):
     for name, actual, expected, tolerance in rows:
         delta = actual - expected
         out.append({"Metric": name, "Local run": round(actual, 5), "Published reference": round(expected, 5), "Delta": round(delta, 5), "Tolerance": tolerance, "Status": "PASS" if abs(delta) <= tolerance else "CHECK"})
-    st.dataframe(pd.DataFrame(out), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(out), width="stretch", hide_index=True)
 
 def source_panel(exp):
     files = [exp["source"]] + ([exp["source2"]] if exp.get("source2") else [])
@@ -472,6 +576,8 @@ def reproduce_panel(exp_id: str, exp):
         ready = render_databento_upload(f"experiment_{exp_id}", compact=True)
         if ready:
             st.success("Dataset ready. Reopen this Reproduce tab to run the experiment.")
+        st.markdown("#### Or use data already on this computer")
+        render_local_path_import(f"experiment_{exp_id}")
         with st.expander("Other data setup options"):
             st.write("You can also download the historical data with your own Databento API key.")
             if st.button("Open full Data Setup", key=f"setup_{exp_id}"):
@@ -536,7 +642,8 @@ def data_setup():
         st.warning("Processed dataset not found yet.")
     st.markdown("### Option A — Download with Databento")
     key = st.text_input("Databento API key", type="password", help="Used only for the child download process; the dashboard does not write the key to disk.")
-    if st.button("Download + build active MNQ series", type="primary", disabled=not key):
+    confirm_cost = st.checkbox("I understand this historical request may incur Databento charges.")
+    if st.button("Download + build active MNQ series", type="primary", disabled=not (key and confirm_cost)):
         env = os.environ.copy()
         env["DATABENTO_API_KEY"] = key
         with st.spinner("Downloading licensed data with your Databento account..."):
@@ -558,6 +665,10 @@ def data_setup():
         "reads it, filters MNQ outright contracts, and rebuilds the active one-minute series automatically."
     )
     render_databento_upload("data_setup")
+
+    st.markdown("### Option C — Use files already on this computer")
+    st.write("For datasets too large for a browser upload, enter a file or folder path. Nothing is copied into the upload area.")
+    render_local_path_import("data_setup")
 
     with st.expander("Manual file-path fallback"):
         st.write("If you prefer not to use the uploader, the command-line importer also accepts one or more files:")
@@ -599,7 +710,7 @@ def home():
                     st.markdown(f"### {exp['title']}")
                     st.write(exp["tagline"])
                     st.caption(exp["summary"])
-                    if st.button("Open experiment →", key=f"open_{exp_id}", use_container_width=True):
+                    if st.button("Open experiment →", key=f"open_{exp_id}", width="stretch"):
                         st.session_state["selected"] = exp_id
                         st.session_state["page"] = "Experiment"
                         st.rerun()
@@ -625,7 +736,7 @@ def experiment_page(exp_id: str):
         st.caption("FROZEN PUBLISHED RESULT — loaded from reference_results/reference_metrics.json")
         df = chart_reference(exp_id)
         if len(df):
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
     with tab3:
         st.caption("CANONICAL ANALYSIS SOURCE")
         source_panel(exp)
@@ -652,11 +763,11 @@ if "page" not in st.session_state:
 
 with st.sidebar:
     st.markdown("## FVG Research Lab")
-    if st.button("Home", use_container_width=True):
+    if st.button("Home", width="stretch"):
         st.session_state["page"] = "Home"; st.rerun()
-    if st.button("Data Setup", use_container_width=True):
+    if st.button("Data Setup", width="stretch"):
         st.session_state["page"] = "Data Setup"; st.rerun()
-    if st.button("Generated Outputs", use_container_width=True):
+    if st.button("Generated Outputs", width="stretch"):
         st.session_state["page"] = "Generated Outputs"; st.rerun()
     st.markdown("---")
     st.caption("Dataset")
