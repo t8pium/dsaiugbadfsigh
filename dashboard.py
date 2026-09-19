@@ -451,7 +451,7 @@ def verification(exp_id: str):
         if exp_id == "raw_fill":
             p = RESULTS / "detailed_1m" / "summary.json"
             if fresh_file(p, ("detailed-1m",)):
-                actual = json.load(p.open("r", encoding="utf-8"))
+                actual = json.loads(p.read_text(encoding="utf-8"))
                 rows += [
                     ("5m touch %", actual["raw_touch_5"] * 100, REFERENCE["experiments"]["raw_fill"]["touch_rate"][0] * 100, 0.35),
                     ("60m touch %", actual["raw_touch_60"] * 100, REFERENCE["experiments"]["raw_fill"]["touch_rate"][3] * 100, 0.35),
@@ -524,7 +524,7 @@ def verification(exp_id: str):
         elif exp_id == "controls_regimes":
             p = RESULTS / "detailed_1m" / "logistic_60m.json"
             if fresh_file(p, ("detailed-1m",)):
-                actual = json.load(p.open("r", encoding="utf-8"))
+                actual = json.loads(p.read_text(encoding="utf-8"))
                 rows.append(("FVG odds ratio", float(actual["fvg_odds_ratio"]), 1.0789, 0.03))
         elif exp_id == "oos":
             p = RESULTS / "detailed_1m" / "train_test.csv"
