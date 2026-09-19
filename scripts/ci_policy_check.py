@@ -14,6 +14,11 @@ ORIGINAL_HASHES = {
 }
 
 
+def canonical_digest(path: Path) -> str:
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def tracked_files() -> list[Path]:
     output = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT)
     return [ROOT / item.decode() for item in output.split(b"\0") if item]
@@ -25,7 +30,7 @@ def main() -> int:
     assert len(reference["experiments"]) == 9
 
     for relative, expected in ORIGINAL_HASHES.items():
-        actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        actual = canonical_digest(ROOT / relative)
         assert actual == expected, f"Canonical source changed without audit: {relative}"
 
     forbidden_data = []

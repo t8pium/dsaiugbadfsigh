@@ -32,6 +32,14 @@ SOURCE_HASHES = {
 VALID_TFS = {1, 2, 3, 5, 10, 15, 30, 60, 120, 240, 360, 480, 720, 1440}
 
 
+def normalized_source(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def canonical_source_digest(text: str) -> str:
+    return hashlib.sha256(normalized_source(text).encode("utf-8")).hexdigest()
+
+
 class PathRewriter(ast.NodeTransformer):
     def __init__(self) -> None:
         self.replacements = 0
@@ -116,8 +124,8 @@ def main(argv: list[str] | None = None) -> int:
     for folder in ("detailed_1m", "multi_tf", "midpoint", "ce_body"):
         (RESULTS / folder).mkdir(parents=True, exist_ok=True)
     source = ORIGINAL / SCRIPTS[args.study]
-    raw = source.read_bytes()
-    digest = hashlib.sha256(raw).hexdigest()
+    source_text = source.read_text(encoding="utf-8")
+    digest = canonical_source_digest(source_text)
     if digest != SOURCE_HASHES[source.name]:
         print(
             f"ERROR: Canonical source hash changed for {source.name}. Audit the research change "
@@ -125,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
-        code = patch_source(raw.decode("utf-8"), source.name)
+        code = patch_source(normalized_source(source_text), source.name)
     except Exception as exc:
         print(f"ERROR: Could not create portable source: {exc}", file=sys.stderr)
         return 2

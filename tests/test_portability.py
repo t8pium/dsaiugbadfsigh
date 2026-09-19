@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.run_original import ORIGINAL, SCRIPTS, patch_source
+from scripts.run_original import ORIGINAL, SCRIPTS, canonical_source_digest, patch_source
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,6 +16,10 @@ class TestPortability(unittest.TestCase):
             code = patch_source((ORIGINAL / name).read_text(encoding="utf-8"), name)
             self.assertNotIn("/mnt" + "/data", code)
             compile(code, name, "exec")
+
+    def test_canonical_hash_is_line_ending_independent(self):
+        source = "x = 1\ny = 2\n"
+        self.assertEqual(canonical_source_digest(source), canonical_source_digest(source.replace("\n", "\r\n")))
 
     def test_child_scripts_start_from_scripts_directory(self):
         scripts = ROOT / "scripts"
